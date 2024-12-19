@@ -5,3 +5,4 @@ This repo will contain all the material used/created in the making of IEEE Resea
 Authors: 
 Aditya Waghmare 
 Yash Kale
+Ojas Manchanda
