@@ -1,1 +1,0 @@
-Folder for task 2 - implementation of knn on gpu
