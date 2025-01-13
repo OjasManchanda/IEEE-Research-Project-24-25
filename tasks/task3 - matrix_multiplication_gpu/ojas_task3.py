@@ -1,46 +1,49 @@
-import numpy as np
+import cupy as cp
 
-def get_matrix_input(name):
+matrix_mul_kernel = cp.RawKernel(r'''
+extern "C" __global__
+void matmul(const double* A, const double* B, double* C, int N) {
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
     
-    print(f"Enter the dimensions of matrix {name} (rows, columns):")
-    rows, cols = map(int, input().split())
-    
-    print(f"Enter the elements of matrix {name} row by row :")
-    matrix = []
-    for _ in range(rows):
-        row = list(map(int, input().split()))
-        if len(row) != cols:
-            raise ValueError(f"Each row must have exactly {cols} columns.")
-        matrix.append(row)
-    
-    return np.array(matrix)
+    if (row < N && col < N) {
+        double value = 0;
+        for (int k = 0; k < N; ++k) {
+            value += A[row * N + k] * B[k * N + col];
+        }
+        C[row * N + col] = value;
+    }
+}
+''', 'matmul')
 
-print("Matrix Multiplication: A x B")
-A = get_matrix_input("A")
-B = get_matrix_input("B")
+N = int(input("Enter the size of the square matrices: "))
+
+print("Enter values for Matrix A (row by row):")
+matrix_a_values = list(map(float, input().split()))
+if len(matrix_a_values) != N * N:
+    raise ValueError(f"Expected {N * N} values for Matrix A, got {len(matrix_a_values)}")
+matrix_a = cp.array(matrix_a_values).reshape(N, N)
 
 
-if A.shape[1] != B.shape[0]:
-    raise ValueError("Number of columns in A must equal the number of rows in B.")
+print("Enter values for Matrix B (row by row):")
+matrix_b_values = list(map(float, input().split()))
+if len(matrix_b_values) != N * N:
+    raise ValueError(f"Expected {N * N} values for Matrix B, got {len(matrix_b_values)}")
+matrix_b = cp.array(matrix_b_values).reshape(N, N)
 
-rows_A, cols_A = A.shape
-rows_B, cols_B = B.shape
 
-C = np.zeros((rows_A, cols_B))
+result_gpu = cp.zeros((N, N), dtype=cp.float64)
 
-for i in range(rows_A):
-    for j in range(cols_B):
-        C[i, j] = sum(A[i, k] * B[k, j] for k in range(cols_A))
 
-print("\n")
-print("Matrix A:")
-print(A)
-print("\n")
+threads_per_block = (16, 16)
+blocks_per_grid = ((N + threads_per_block[0] - 1) // threads_per_block[0],
+                   (N + threads_per_block[1] - 1) // threads_per_block[1])
 
-print("Matrix B:")
-print(B)
-print("\n")
+matrix_mul_kernel((blocks_per_grid), (threads_per_block),
+                  (matrix_a, matrix_b, result_gpu, N))
 
-print("Result of Matrix Multiplication (A x B):")
-print(C)
+result = cp.asnumpy(result_gpu)
+print("\nResultant Matrix (A x B):")
+for row in result:
+    print(' '.join(map(str, row)))
 
